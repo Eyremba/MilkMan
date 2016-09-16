@@ -1,2 +1,2 @@
 # MilkMan
-a custom minecraft mob with a custom model
+This plugin basicly adds a milkman that well milks cows
