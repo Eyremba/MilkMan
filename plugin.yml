@@ -1,0 +1,6 @@
+name: MilkMan
+version: 1.0
+main: com.kirelcodes.milkman.MilkMan
+depend: [MiniaturePets]
+commands:
+  spawnMilk:
