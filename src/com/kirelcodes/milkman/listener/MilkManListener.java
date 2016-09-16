@@ -23,18 +23,19 @@ public class MilkManListener implements Listener{
 	
 	private boolean spawnMilkMan(){
 		Random rand = new Random();
-		return rand.nextInt(10) == 19;
+		int randN = rand.nextInt(10);
+		return randN == 9;
 	}
 	
-	private Location getRandomNear(Location loc){
+	protected Location getRandomNear(Location loc){
 		Location newLoc = loc.clone();
 		Random rand = new Random();
 		int x = rand.nextInt(6);
 		int z = rand.nextInt(6);
 		int y = loc.getWorld().getHighestBlockYAt(x, z);
-		newLoc.setX(x);
-		newLoc.setY(y);
-		newLoc.setZ(z);
+		newLoc.setX(x + loc.getBlockX());
+		newLoc.setY(y+2);
+		newLoc.setZ(z + loc.getBlockZ());
 		return newLoc;
 	}
 	
@@ -43,7 +44,8 @@ public class MilkManListener implements Listener{
 		if(!(e.getEntity() instanceof Cow))
 			return;
 		if(spawnMilkMan())
-			MilkMan.getMilkMan().spawnMob(getRandomNear(e.getLocation()));
+			MilkMan.getMilkMan().spawnMob(e.getEntity().getLocation());
+		
 	}
 	
 	@EventHandler
@@ -52,10 +54,10 @@ public class MilkManListener implements Listener{
 			if(!(en instanceof Cow))
 				continue;
 			if(spawnMilkMan())
-				MilkMan.getMilkMan().spawnMob(getRandomNear(en.getLocation()));
+				MilkMan.getMilkMan().spawnMob(en.getLocation());
 		}
 	}
-	
+	@EventHandler
 	public void mobDeathEvent(MobDeathEvent e){
 		if(!"MilkMan".equalsIgnoreCase(e.getMob().getName()))
 			return;

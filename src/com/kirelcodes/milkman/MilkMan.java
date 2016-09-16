@@ -5,7 +5,10 @@ import java.io.IOException;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import com.kirelcodes.milkman.listener.MilkManListener;
@@ -54,6 +57,7 @@ public class MilkMan extends JavaPlugin {
 					return;
 				}
 				mob.getPathManager().addPathfinder(new MilkManPathfinder(mob));
+				mob.setCustomName("spawnMob");
 			}
 		});
 		return true;
@@ -65,6 +69,17 @@ public class MilkMan extends JavaPlugin {
 
 	public static APIMobContainer getMilkMan() {
 		return milkMan;
+	}
+	@Override
+	public boolean onCommand(CommandSender sender, Command command,
+			String label, String[] args) {
+		if (!(sender instanceof Player))
+			return false;
+		if (!label.equalsIgnoreCase("spawnMilk"))
+			return false;
+		if(sender.hasPermission("MilkMan.spawnMilker"))
+		getMilkMan().spawnMob(((Player) sender).getLocation());
+		return false;
 	}
 
 }

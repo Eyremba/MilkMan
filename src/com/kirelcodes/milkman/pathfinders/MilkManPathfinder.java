@@ -1,5 +1,11 @@
 package com.kirelcodes.milkman.pathfinders;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
 import org.bukkit.Material;
 import org.bukkit.entity.Cow;
 import org.bukkit.entity.Entity;
@@ -7,12 +13,14 @@ import org.bukkit.entity.Item;
 import org.bukkit.inventory.ItemStack;
 
 import com.kirelcodes.milkman.MilkMan;
+import com.kirelcodes.milkman.utils.NMSClassInteracter;
 import com.kirelcodes.miniaturepets.api.pathfinding.Pathfinder;
 import com.kirelcodes.miniaturepets.api.pets.APIMob;
 
 public class MilkManPathfinder extends Pathfinder {
 	private APIMob mob = null;
-	private int cooldown;
+	private Map<Cow, Integer> cooldownMap;
+	private int timeOnTarget, timeOnLocationTarget;
 	private Item targetItem;
 	private Cow targetCow;
 
@@ -33,9 +41,11 @@ public class MilkManPathfinder extends Pathfinder {
 
 	@Override
 	public void onStart() {
-		this.cooldown = -1;
+		this.timeOnTarget = -1;
+		this.timeOnLocationTarget = -1;
 		this.targetItem = null;
 		this.targetCow = null;
+		this.cooldownMap = new HashMap<>();
 	}
 
 	@Override
@@ -45,16 +55,40 @@ public class MilkManPathfinder extends Pathfinder {
 
 	@Override
 	public void afterTask() {
-		if(onCooldown())
-			cooldown--;
+		List<Cow> removeCows = new ArrayList<>();
+		for (Entry<Cow, Integer> entry : cooldownMap.entrySet()) {
+			cooldownMap.replace(entry.getKey(), entry.getValue() - 1);
+			if (cooldownMap.get(entry.getKey()) < 0)
+				removeCows.add(entry.getKey());
+		}
+		for(Cow cow : removeCows)
+			cooldownMap.remove(cow);
+		if (hasTarget()) {
+			timeOnTarget++;
+			if (timeOnTarget >= 20 * 5) {
+				timeOnTarget = -1;
+				targetCow = null;
+				targetItem = null;
+				stopPathFinding();
+			}
+		}
+		if (hasTargetLocation()) {
+			timeOnLocationTarget++;
+			if (timeOnLocationTarget >= 20 * 5) {
+				timeOnLocationTarget = -1;
+				targetCow = null;
+				targetItem = null;
+				stopPathFinding();
+			}
+		}
 	}
-	
+
 	@Override
 	public void updateTask() {
 		if (!hasTarget()) {
-			try{
+			try {
 				mob.stopPathfinding();
-			}catch(Exception e){
+			} catch (Exception e) {
 				e.printStackTrace();
 			}
 			if (scanForIngot())
@@ -67,8 +101,7 @@ public class MilkManPathfinder extends Pathfinder {
 			handleIngot();
 			break;
 		case COW:
-			if (!onCooldown())
-				handleCow();
+			handleCow();
 			break;
 		case UNKNOWN:
 			break;
@@ -78,7 +111,17 @@ public class MilkManPathfinder extends Pathfinder {
 	}
 
 	private boolean hasTarget() {
-		return targetCow != null || targetItem != null;
+		if (targetCow != null) {
+			if (targetCow.isDead())
+				return false;
+			return true;
+		}
+		if (targetItem != null) {
+			if (targetItem.isDead())
+				return false;
+			return true;
+		}
+		return false;
 	}
 
 	private boolean hasTargetLocation() {
@@ -96,11 +139,16 @@ public class MilkManPathfinder extends Pathfinder {
 					this.targetItem = null;
 			} catch (Exception e) {
 				e.printStackTrace();
+				this.targetItem = null;
 			}
 			return;
 		}
 		if (onTargetLocation()) {
 			for (ItemStack item : mob.getInventory().getContents()) {
+				if (item == null)
+					continue;
+				if (item.getType() != Material.MILK_BUCKET)
+					continue;
 				mob.getLocation()
 						.getWorld()
 						.dropItemNaturally(
@@ -109,7 +157,7 @@ public class MilkManPathfinder extends Pathfinder {
 												.multiply(1.2)), item);
 				mob.getInventory().remove(item);
 			}
-			mob.getInventory().addItem(this.targetItem.getItemStack());
+			mob.getInventory().addItem(new ItemStack(Material.GOLD_NUGGET));
 			targetItem.remove();
 			this.targetItem = null;
 			return;
@@ -122,34 +170,34 @@ public class MilkManPathfinder extends Pathfinder {
 				if (!mob.setTargetLocation(targetCow.getLocation()))
 					this.targetCow = null;
 			} catch (Exception e) {
+				this.targetCow = null;
 				e.printStackTrace();
 			}
 			return;
 		}
 		if (onTargetLocation()) {
-			for (ItemStack item : mob.getInventory()
-					.addItem(new ItemStack(Material.MILK_BUCKET)).values())
-				mob.getLocation().getWorld()
-						.dropItemNaturally(this.targetCow.getLocation(), item);
+			mob.getInventory().addItem(new ItemStack(Material.MILK_BUCKET));
+			startCooldown(targetCow);
 			this.targetCow = null;
-			startCooldown();
 		}
 	}
 
-	private void startCooldown() {
-		this.cooldown = 5 * 20;
+	private void startCooldown(Cow cow) {
+		cooldownMap.put(cow, 75 * 2);
 	}
 
-	private boolean onCooldown() {
-		return this.cooldown != -1;
+	private boolean onCooldown(Cow cow) {
+		return cooldownMap.containsKey(cow);
 	}
 
 	private boolean scanForIngot() {
 		for (Entity e : mob.getNavigator().getNearbyEntities(10, 10, 10)) {
 			if (!(e instanceof Item))
 				continue;
+			if (!e.isOnGround())
+				continue;
 			Item item = (Item) e;
-			if (item.getItemStack().getType() == Material.GOLD_NUGGET) {
+			if (item.getItemStack().getType() == Material.GOLD_INGOT) {
 				this.targetItem = item;
 				return true;
 			}
@@ -160,6 +208,10 @@ public class MilkManPathfinder extends Pathfinder {
 	private boolean scanForCows() {
 		for (Entity e : mob.getNavigator().getNearbyEntities(10, 10, 10)) {
 			if (!(e instanceof Cow))
+				continue;
+			if (!e.isOnGround())
+				continue;
+			if (onCooldown((Cow) e))
 				continue;
 			this.targetCow = (Cow) e;
 			return true;
@@ -175,6 +227,16 @@ public class MilkManPathfinder extends Pathfinder {
 		if (targetCow != null)
 			return TargetType.COW;
 		return TargetType.UNKNOWN;
+	}
+
+	private void stopPathFinding() {
+		try {
+			mob.stopPathfinding();
+			NMSClassInteracter.setDeclaredField(mob, "targetLocation", null);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
 	}
 
 }
