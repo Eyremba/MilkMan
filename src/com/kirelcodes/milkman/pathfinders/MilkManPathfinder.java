@@ -236,7 +236,6 @@ public class MilkManPathfinder extends Pathfinder {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		
 	}
 
 }
